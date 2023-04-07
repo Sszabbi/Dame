@@ -1,5 +1,4 @@
 import numpy as np
-import itertools as it
 
 class Dame:
     '''
@@ -34,7 +33,7 @@ class Dame:
                 self.black_pieces.append((x,y))
 
         # Used when the drawing board
-        self.draw_as = { 
+        self.draw_as = {
             0: '_', # Empty squares
             1: 'W', # White pieces 
             2: 'B', # Black pieces
@@ -52,6 +51,7 @@ class Dame:
             'h':7
         }
 
+
     def print_board(self):
         '''
             Draws the board to the console
@@ -67,6 +67,69 @@ class Dame:
         print("    a b c d e f g h")
         print()
 
+
+    def coords_to_index(self, coords):
+        """
+        Turns an on-board coordinates into the index of said coordinates in self.board
+        e.g. if coords="a8" it returns (0,0)
+        """
+
+        # Horrible input check
+        if len(coords) != 2:
+            print("Something went terribly wrong here.")
+            return (-1,-1)
+        
+        x, y = coords
+        
+        # Useful column number
+        x = self.char_to_col.get(x, -1)
+
+        # Turning game-accurate input code-accurate, also on the lookout for non-number input
+        try:
+            y = 8 - int(y)
+        except:
+            print("That makes no sense.")
+            return(x,-1)
+        
+        return x, y
+    
+    def get_input(self):
+        '''
+            Keeps asking for input until you put in somthing that makes sense.
+            Makes sense means two baord-read coordinates like "a4 f5"
+        '''
+
+        try_again = True
+        while try_again: # Only escape loop if everything goes well
+            try_again = False
+
+            curr = input("Move for white: ")
+
+            if curr == "-1": # To quit debug without ctrl+c
+                return -1
+
+            curr = curr.split()
+            if len(curr) != 2:
+                try_again = True
+                curr = ["i9","i9"]
+
+            fro,to = curr
+
+            # Making arguments usable
+            xf, yf = self.coords_to_index(fro)
+            xto, yto = self.coords_to_index(to)
+            
+            # Bad input check
+            for idx in [xf, yf, xto, yto]:
+                if idx not in range(8):
+                    print("That makes no sense.")
+                    try_again = True
+
+        return (xf,yf), (xto,yto)
+
+
+
+
     def is_move_valid(self, fro, to, for_white):
         '''
             Examines the validity of a player moving from "fro" to "to".
@@ -76,34 +139,70 @@ class Dame:
             e.g.: "a8" for the upper-left corner.
         '''
 
-        # Horrible input check
-        if len(fro) != 2 or len(to) != 2: 
-            print("Something went terribly wrong here.")
-            return False
-        
-
-        # Making arguments usable
-        xf,yf = fro.split()
-        xf = self.char_to_col.get(xf, -1) # useful column number
-        yf -= 1 # indexed from 0
-
-        xto,yto = to.split()
-        xto = self.char_to_col.get(xto, -1) # useful column number
-        yto -= 1 # indexed from 0
-
-        # Bad input check
-        for coord in [xf,yf,xto,yto]:
-            if coord not in range(8):
-                print("I don't like that.")
-                return False
+        xf, yf = fro
+        xto, yto = to
             
-        return True
+        # Do you have a piece there?
+        your_pieces = [1] if for_white else [2]
 
+        if for_white and self.board[xf,yf] not in your_pieces:
+            print("You have no piece there, blindo.")
+            return False
 
+        # Possible Movements (just single-moves as of now)
+        move_vec = np.array([xto-xf, yto-yf])
+        poss_moves = []
+
+        if for_white:
+            poss_moves.append(np.array([-1,-1]))
+            poss_moves.append(np.array([1,-1]))
+
+        else:
+            poss_moves.append(np.array([-1,1]))
+            poss_moves.append(np.array([1,1]))
+        
+        # Is the destination empty?
+        if self.board[xto,yto] != 0:
+            print("There is something in the way.")
+            return False
+            
+        # Check if move is legal
+        for pm in poss_moves:
+            if (pm == move_vec).all():
+                return True
+        
+        return False
+    
+
+    def move(self, fro, to):
+        """
+        Moves the piece on 'fro' to 'to'.
+        Assumes the input is all good in all the ways
+        """
+
+        self.board[to] = self.board[fro]
+        self.board[fro] = 0
 
 
 if __name__ == "__main__":
 
-    dame = Dame()
-    dame.print_board()
-    print(dame.is_move_valid('a1','b2', for_white=True))
+    game = Dame()
+
+    while True:
+        
+        
+        game.print_board()
+
+        move = game.get_input()
+        if move == -1:
+            break
+
+        fro,to = move
+        valid = game.is_move_valid(fro, to, True)
+        if valid:
+            print(f"White moves from {fro} to {to}.")
+            game.move(fro,to)
+        else:
+            print("That simply cannot be done.")
+
+        print()
