@@ -51,6 +51,11 @@ class Dame:
             'h':7
         }
 
+        # A convinience for printing
+        self.name = {
+            True: "White",
+            False: "Black"
+        }
 
     def print_board(self):
         '''
@@ -66,7 +71,6 @@ class Dame:
         print()
         print("    a b c d e f g h")
         print()
-
 
     def coords_to_index(self, coords):
         """
@@ -93,7 +97,7 @@ class Dame:
         
         return x, y
     
-    def get_input(self):
+    def get_input(self, for_white):
         '''
             Keeps asking for input until you put in somthing that makes sense.
             Makes sense means two baord-read coordinates like "a4 f5"
@@ -103,7 +107,7 @@ class Dame:
         while try_again: # Only escape loop if everything goes well
             try_again = False
 
-            curr = input("Move for white: ")
+            curr = input(f"Move for {self.name[for_white]}: ")
 
             if curr == "-1": # To quit debug without ctrl+c
                 return -1
@@ -127,9 +131,6 @@ class Dame:
 
         return (xf,yf), (xto,yto)
 
-
-
-
     def is_move_valid(self, fro, to, for_white):
         '''
             Examines the validity of a player moving from "fro" to "to".
@@ -145,7 +146,7 @@ class Dame:
         # Do you have a piece there?
         your_pieces = [1] if for_white else [2]
 
-        if for_white and self.board[xf,yf] not in your_pieces:
+        if self.board[xf,yf] not in your_pieces:
             print("You have no piece there, blindo.")
             return False
 
@@ -173,7 +174,6 @@ class Dame:
         
         return False
     
-
     def move(self, fro, to):
         """
         Moves the piece on 'fro' to 'to'.
@@ -183,26 +183,45 @@ class Dame:
         self.board[to] = self.board[fro]
         self.board[fro] = 0
 
+    def take_turn(self, for_white):
+        '''
+        A player keeps trying to make moves until they can,
+        then the other.
+        '''
+    
+        turn_done = False
+        while not turn_done:
+
+            move = game.get_input(for_white)
+            if move == -1:
+                return -1
+            
+            fro,to = move
+            valid = game.is_move_valid(fro, to, for_white)
+            if valid:
+                print(f"{self.name[for_white]} moves from {fro} to {to}.")
+                game.move(fro,to)
+                turn_done = True
+            else:
+                print("That simply cannot be done.")
+
+            print()
+  
+    def play(self):
+        '''
+        Play a game of dame
+        '''
+
+        for_white = True
+        while True:
+            self.print_board()
+            if self.take_turn(for_white) == -1:
+                break
+            for_white = not for_white
+
 
 if __name__ == "__main__":
 
     game = Dame()
-
-    while True:
+    game.play()
         
-        
-        game.print_board()
-
-        move = game.get_input()
-        if move == -1:
-            break
-
-        fro,to = move
-        valid = game.is_move_valid(fro, to, True)
-        if valid:
-            print(f"White moves from {fro} to {to}.")
-            game.move(fro,to)
-        else:
-            print("That simply cannot be done.")
-
-        print()
