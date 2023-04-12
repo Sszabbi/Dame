@@ -75,7 +75,7 @@ class Dame:
     def coords_to_index(self, coords):
         """
         Turns an on-board coordinates into the index of said coordinates in self.board
-        e.g. if coords="a8" it returns (0,0)
+        e.g. if coords="a8" it returns (0,0). Used at input parsing.
         """
 
         # Horrible input check
@@ -101,6 +101,8 @@ class Dame:
         '''
             Keeps asking for input until you put in somthing that makes sense.
             Makes sense means two baord-read coordinates like "a4 f5"
+
+            Returns np arrays to and fro with the appropriate coordinates
         '''
 
         try_again = True
@@ -136,8 +138,7 @@ class Dame:
             Examines the validity of a player moving from "fro" to "to".
 
             Player is white iff for_white is True
-            fro and to are strings in the format of "{letter}{number}" as read from the board
-            e.g.: "a8" for the upper-left corner.
+            fro and to are tuples with the indices of the places in self.board
         '''
 
         xf, yf = fro
@@ -145,13 +146,19 @@ class Dame:
             
         # Do you have a piece there?
         your_pieces = [1] if for_white else [2]
+        enemy_pieces = [2] if for_white else [1]
 
         if self.board[xf,yf] not in your_pieces:
             print("You have no piece there, blindo.")
             return False
+        
+        
+        # Is the destination empty?
+        if self.board[xto,yto] != 0:
+            print("There is something in the way.")
+            return False
 
         # Possible Movements (just single-moves as of now)
-        move_vec = np.array([xto-xf, yto-yf])
         poss_moves = []
 
         if for_white:
@@ -162,10 +169,14 @@ class Dame:
             poss_moves.append(np.array([-1,1]))
             poss_moves.append(np.array([1,1]))
         
-        # Is the destination empty?
-        if self.board[xto,yto] != 0:
-            print("There is something in the way.")
-            return False
+        move_vec = np.array([xto-xf, yto-yf])
+
+        if abs(move_vec[0]) == 2 and abs(move_vec[1]):
+            move_vec //= 2
+            ovx, ovy = np.array(fro) + move_vec
+            if self.board[ovx, ovy] not in enemy_pieces:
+                print("You can only jump over an enemy beforeward of you.")
+                return False
             
         # Check if move is legal
         for pm in poss_moves:
@@ -177,11 +188,24 @@ class Dame:
     def move(self, fro, to):
         """
         Moves the piece on 'fro' to 'to'.
-        Assumes the input is all good in all the ways
+        Assumes the input is all good in all the ways.
+
+        If it's a jump obliterate anything inbetween and return True.
+        (Returns False if not a jump, then.)
         """
 
         self.board[to] = self.board[fro]
         self.board[fro] = 0
+
+        to = np.array(to)
+        fro = np.array(fro)
+
+        if abs(to[0] - fro[0]) == 2 and abs(to[1] - fro[1]) == 2:
+            ovx, ovy = (fro+to)//2
+            self.board[ovx,ovy] = 0
+            return True
+        
+        return False
 
     def take_turn(self, for_white):
         '''
@@ -200,12 +224,18 @@ class Dame:
             valid = game.is_move_valid(fro, to, for_white)
             if valid:
                 print(f"{self.name[for_white]} moves from {fro} to {to}.")
-                game.move(fro,to)
-                turn_done = True
+                turn_done = not game.move(fro,to) # Stays as True iif you jump
+                if not turn_done:
+
+                    print("It't a clean kill!")
+                    self.print_board()
+
+                else:
+                    print()
+
             else:
                 print("That simply cannot be done.")
-
-            print()
+                print()
   
     def play(self):
         '''
