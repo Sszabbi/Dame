@@ -34,9 +34,11 @@ class Dame:
 
         # Used when the drawing board
         self.draw_as = {
-            0: '_', # Empty squares
-            1: 'W', # White pieces 
-            2: 'B', # Black pieces
+            0: '_', # Empty square
+            1: 'W', # White piece 
+            2: 'B', # Black piece
+            3: "Q", # White super piece (queen)
+            4: "D"  # Black super piece (dame)
         }
 
         # Used when moving pieces
@@ -145,8 +147,8 @@ class Dame:
         xto, yto = to
             
         # Do you have a piece there?
-        your_pieces = [1] if for_white else [2]
-        enemy_pieces = [2] if for_white else [1]
+        your_pieces = [1, 3] if for_white else [2, 4]
+        enemy_pieces = [2, 4] if for_white else [1, 3]
 
         if self.board[xf,yf] not in your_pieces:
             print("You have no piece there, blindo.")
@@ -158,20 +160,22 @@ class Dame:
             print("There is something in the way.")
             return False
 
-        # Possible Movements (just single-moves as of now)
-        poss_moves = []
+        poss_moves = [] # Your movement should be in here somehow
 
-        if for_white:
+        # Moving up
+        if for_white or (not for_white and self.board[xf,yf] == your_pieces[1]):
             poss_moves.append(np.array([-1,-1]))
             poss_moves.append(np.array([1,-1]))
 
-        else:
+        # Moving down
+        if not for_white or (for_white and self.board[xf,yf] == your_pieces[1]):
             poss_moves.append(np.array([-1,1]))
             poss_moves.append(np.array([1,1]))
         
         move_vec = np.array([xto-xf, yto-yf])
 
-        if abs(move_vec[0]) == 2 and abs(move_vec[1]):
+        # Check if you're trying to jump over someone
+        if abs(move_vec[0]) == 2 and abs(move_vec[1]) == 2:
             move_vec //= 2
             ovx, ovy = np.array(fro) + move_vec
             if self.board[ovx, ovy] not in enemy_pieces:
@@ -185,21 +189,32 @@ class Dame:
         
         return False
     
-    def move(self, fro, to):
+    def move(self, fro, to, for_white):
         """
         Moves the piece on 'fro' to 'to'.
-        Assumes the input is all good in all the ways.
+        Assumes the input is all good in all the ways (two good tuples).
 
-        If it's a jump obliterate anything inbetween and return True.
+        If it's a jump then obliterate anything inbetween and return True.
         (Returns False if not a jump, then.)
+
+        If a regular piece reaches the opposite side, promote it to super piece.
         """
 
+        # Moving the piece and leaving nothing behind
         self.board[to] = self.board[fro]
         self.board[fro] = 0
 
+        # Check for promotion (other side + regular piece)
+        if to[1] == 7 - int(for_white) * 7 and self.board[to] < 3:
+            self.board[to] += 2
+            print(f"The {self.name[for_white]} piece reaches the enemy lines! Promoted!")
+
+        # (For the needy functions)
         to = np.array(to)
         fro = np.array(fro)
 
+
+        # Remove over-jumped piece forever
         if abs(to[0] - fro[0]) == 2 and abs(to[1] - fro[1]) == 2:
             ovx, ovy = (fro+to)//2
             self.board[ovx,ovy] = 0
@@ -224,10 +239,10 @@ class Dame:
             valid = game.is_move_valid(fro, to, for_white)
             if valid:
                 print(f"{self.name[for_white]} moves from {fro} to {to}.")
-                turn_done = not game.move(fro,to) # Stays as True iif you jump
+                turn_done = not game.move(fro, to, for_white) # Stays as True iif you jump
                 if not turn_done:
 
-                    print("It't a clean kill!")
+                    print("It't a clean kill! Go again!")
                     self.print_board()
 
                 else:
