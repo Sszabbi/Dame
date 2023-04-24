@@ -1,4 +1,5 @@
 import numpy as np
+from itertools import product
 
 class Dame:
     '''
@@ -74,10 +75,11 @@ class Dame:
         print("    a b c d e f g h")
         print()
 
-    def coords_to_index(self, coords):
+    def coords_to_index(self, coords: str):
         """
         Turns an on-board coordinates into the index of said coordinates in self.board
         e.g. if coords="a8" it returns (0,0). Used at input parsing.
+        Returns and off-board index if input is eugh.
         """
 
         # Horrible input check
@@ -99,7 +101,7 @@ class Dame:
         
         return x, y
     
-    def get_input(self, for_white):
+    def get_input(self, for_white: bool):
         '''
             Keeps asking for input until you put in somthing that makes sense.
             Makes sense means two baord-read coordinates like "a4 f5"
@@ -134,30 +136,61 @@ class Dame:
                     try_again = True
 
         return (xf,yf), (xto,yto)
+        
+    def can_jump(self, for_white: bool):
+        """
+            Returns True if the player can make a capture
+            (for those unaware, the rules say that you MUST make that jump then.)
+        """
 
-    def is_move_valid(self, fro, to, for_white):
+        moves = self.list_valid_moves(for_white)
+        for (xf,_), (xto,_) in moves:
+
+            if abs(xf-xto) == 2:
+                print(f"{self.name[for_white]} sees a vulnerable enemy! They are seeing red!")
+                return True
+            
+        return False
+    
+    def is_move_valid(self, fro: tuple, to: tuple, for_white: bool, must_jump: bool,
+                      verbose: bool = True):
         '''
             Examines the validity of a player moving from "fro" to "to".
 
             Player is white iff for_white is True
             fro and to are tuples with the indices of the places in self.board
+
+            If you must jump, you must jump.
+
+            In verbose mode, shows a "helpful" message if your move cannot be moved
         '''
 
         xf, yf = fro
         xto, yto = to
+
+        for coord in [xf,yf,xto,yto]:
+            if coord not in range(8):
+                return False
+            
+        # Check if you are jumping if you must.
+        if must_jump and abs(xf-xto) != 2:
+            print("You have to jump, you just have to.")
+            return False
             
         # Do you have a piece there?
         your_pieces = [1, 3] if for_white else [2, 4]
         enemy_pieces = [2, 4] if for_white else [1, 3]
 
         if self.board[xf,yf] not in your_pieces:
-            print("You have no piece there, blindo.")
+            if verbose:
+                print("You have no piece there, blindo.")
             return False
         
         
         # Is the destination empty?
         if self.board[xto,yto] != 0:
-            print("There is something in the way.")
+            if verbose:
+                print("There is something in the way.")
             return False
 
         poss_moves = [] # Your movement should be in here somehow
@@ -179,7 +212,8 @@ class Dame:
             move_vec //= 2
             ovx, ovy = np.array(fro) + move_vec
             if self.board[ovx, ovy] not in enemy_pieces:
-                print("You can only jump over an enemy beforeward of you.")
+                if verbose:
+                    print("You can only jump over an enemy beforeward of you.")
                 return False
             
         # Check if move is legal
@@ -187,12 +221,14 @@ class Dame:
             if (pm == move_vec).all():
                 return True
         
+        if verbose:
+            print("That move is against the law.")
         return False
     
-    def move(self, fro, to, for_white):
+    def move(self, fro: tuple, to: tuple, for_white: bool):
         """
         Moves the piece on 'fro' to 'to'.
-        Assumes the input is all good in all the ways (two good tuples).
+        Assumes the input is all good in all the ways.
 
         If it's a jump then obliterate anything inbetween and return True.
         (Returns False if not a jump, then.)
@@ -222,7 +258,7 @@ class Dame:
         
         return False
 
-    def take_turn(self, for_white):
+    def take_turn(self, for_white: bool):
         '''
         A player keeps trying to make moves until they can,
         then the other.
@@ -235,15 +271,29 @@ class Dame:
             if move == -1:
                 return -1
             
+            # Move examination
             fro,to = move
-            valid = game.is_move_valid(fro, to, for_white)
+            must_jump = self.can_jump(for_white)
+            valid = game.is_move_valid(fro, to, for_white, must_jump)
+
             if valid:
+
                 print(f"{self.name[for_white]} moves from {fro} to {to}.")
-                turn_done = not game.move(fro, to, for_white) # Stays as True iif you jump
+                turn_done = not game.move(fro, to, for_white) # Stays as True if you jump
+
                 if not turn_done:
 
-                    print("It't a clean kill! Go again!")
-                    self.print_board()
+                    # Check to see if the jumping piece can jump again
+                    turn_done = True
+
+                    for (xf,yf), (xto,_) in self.list_valid_moves(for_white):
+
+                        # We found the jumper, can he jump?
+                        if (xf,yf) == to and abs(xf-xto) == 2:
+                            turn_done = False
+                            break
+
+                    print(f"It't a clean kill!{int(not turn_done) * ' keep going!'}")
 
                 else:
                     print()
@@ -252,17 +302,65 @@ class Dame:
                 print("That simply cannot be done.")
                 print()
   
+    def list_valid_moves(self, for_white: bool):
+        '''
+            Makes a list of all possible moves that a player can make.
+            The moves are in the from of tuples.
+        '''
+        moves = []
+        your_pieces = [1,3] if for_white else [2, 4]
+
+        for x,y in product(range(8),range(8)):
+
+            # Piece found
+            if self.board[x,y] in your_pieces:
+
+                # This checks all 8 possible moves no matter what, which is honestly fine.
+                for dx,dy in list(product([-1,1],[-1,1])) + list(product([-2,2],[-2,2])):
+
+                    if self.is_move_valid((x,y), (x+dx, y+dy), for_white, must_jump = False,
+                                          verbose = False):
+                        moves.append(( (x,y),(x+dx,y+dy) ))
+                        
+        return moves
+
+    def is_game_over(self, for_white: bool, verbose:bool = True):
+        '''
+            Checks if the game is over for a player.
+            Returns True if the player has no possible moves
+            Return False if the player has possible moves.
+        '''
+
+        moves = self.list_valid_moves(for_white)
+
+        if len(moves) == 0:
+            if verbose:
+                print(f"Not a move to make for {self.name[for_white]}. Sad.")
+            return True
+
+        elif verbose:
+                print(f"{self.name[for_white]} has a move: {moves[0]}, so the game is still going.")
+        return False
+
     def play(self):
         '''
         Play a game of dame
         '''
 
         for_white = True
-        while True:
+        running = True
+        while running:
+
             self.print_board()
             if self.take_turn(for_white) == -1:
                 break
             for_white = not for_white
+
+            if self.is_game_over(for_white):
+                
+                running = False
+                self.print_board()
+                print(f"{self.name[not for_white]} has Won! The Game! Wow! Good job!")
 
 
 if __name__ == "__main__":
