@@ -1,6 +1,8 @@
 import numpy as np
 from itertools import product
 
+from mainmenu import MainMenu
+
 class Dame:
     '''
         The main managing class of the game dame (or checkers, by its actual boring name).
@@ -294,6 +296,8 @@ class Dame:
                             break
 
                     print(f"It't a clean kill!{int(not turn_done) * ' keep going!'}")
+                    if not turn_done:
+                        self.print_board()
 
                 else:
                     print()
@@ -342,26 +346,57 @@ class Dame:
                 print(f"{self.name[for_white]} has a move: {moves[0]}, so the game is still going.")
         return False
 
-    def play(self):
+    def play_vs_man(self):
+
         '''
-        Play a game of dame
+            Play a game of dame against one of your many friends
         '''
 
         for_white = True
         running = True
+
+        # Base Game Loop
         while running:
 
             self.print_board()
+
+            # Current player does things
             if self.take_turn(for_white) == -1:
                 break
             for_white = not for_white
 
+            # Check for loser
             if self.is_game_over(for_white):
                 
                 running = False
                 self.print_board()
                 print(f"{self.name[not for_white]} has Won! The Game! Wow! Good job!")
 
+    def play_vs_ai(self):
+        '''
+            Play against a fully sentient, conscious artificial intelligence.
+        '''
+
+        print("The AI frofeits. You win.")
+
+    def play(self):
+        '''
+            Pick and choose a way to play dame
+        '''
+
+        menu = MainMenu()
+        command = menu.get_command()
+
+        match command:
+
+            case 0: # VS Man
+                self.play_vs_man()
+
+            case 1: # VS AI
+                self.play_vs_ai()
+
+            case 2: # QUIT
+                print("Bye!")
 
 if __name__ == "__main__":
 
