@@ -2,6 +2,7 @@ import numpy as np
 from itertools import product
 
 from mainmenu import MainMenu
+from dame_ai import Dame_AI
 
 class Dame:
     '''
@@ -13,6 +14,7 @@ class Dame:
             Makes a board in a starting state.
         '''
 
+        # The Board
         self.board = np.zeros([8,8], dtype=int)
         self.white_pieces = []
         self.black_pieces = []
@@ -149,7 +151,6 @@ class Dame:
         for (xf,_), (xto,_) in moves:
 
             if abs(xf-xto) == 2:
-                print(f"{self.name[for_white]} sees a vulnerable enemy! They are seeing red!")
                 return True
             
         return False
@@ -242,6 +243,11 @@ class Dame:
         self.board[to] = self.board[fro]
         self.board[fro] = 0
 
+        your_pieces = self.white_pieces if for_white else self.black_pieces
+        your_pieces.remove(fro)
+        your_pieces.append(to)
+
+
         # Check for promotion (other side + regular piece)
         if to[1] == 7 - int(for_white) * 7 and self.board[to] < 3:
             self.board[to] += 2
@@ -254,8 +260,12 @@ class Dame:
 
         # Remove over-jumped piece forever
         if abs(to[0] - fro[0]) == 2 and abs(to[1] - fro[1]) == 2:
+
+            enemy_pieces = self.black_pieces if for_white else self.white_pieces
+
             ovx, ovy = (fro+to)//2
             self.board[ovx,ovy] = 0
+            enemy_pieces.remove((ovx,ovy))
             return True
         
         return False
@@ -312,19 +322,16 @@ class Dame:
             The moves are in the from of tuples.
         '''
         moves = []
-        your_pieces = [1,3] if for_white else [2, 4]
+        your_pieces = self.white_pieces if for_white else self.black_pieces
 
-        for x,y in product(range(8),range(8)):
+        for x,y in your_pieces:
 
-            # Piece found
-            if self.board[x,y] in your_pieces:
+            # This checks all 8 possible moves no matter what, which is honestly fine.
+            for dx,dy in list(product([-1,1],[-1,1])) + list(product([-2,2],[-2,2])):
 
-                # This checks all 8 possible moves no matter what, which is honestly fine.
-                for dx,dy in list(product([-1,1],[-1,1])) + list(product([-2,2],[-2,2])):
-
-                    if self.is_move_valid((x,y), (x+dx, y+dy), for_white, must_jump = False,
+                if self.is_move_valid((x,y), (x+dx, y+dy), for_white, must_jump = False,
                                           verbose = False):
-                        moves.append(( (x,y),(x+dx,y+dy) ))
+                    moves.append(( (x,y),(x+dx,y+dy) ))
                         
         return moves
 
@@ -361,12 +368,12 @@ class Dame:
             self.print_board()
 
             # Current player does things
-            if self.take_turn(for_white) == -1:
-                break
+            if self.take_turn(for_white) == -1: # -1 is the exit code
+                running = False
             for_white = not for_white
 
             # Check for loser
-            if self.is_game_over(for_white):
+            if self.is_game_over(for_white, verbose=False):
                 
                 running = False
                 self.print_board()
@@ -377,7 +384,36 @@ class Dame:
             Play against a fully sentient, conscious artificial intelligence.
         '''
 
-        print("The AI frofeits. You win.")
+        robot = Dame_AI(self, is_white = False) #TODO: choose player
+
+        for_white = True
+        your_turn = True
+        running = True
+
+        while running:
+
+            self.print_board()
+
+            # Players and robots do things alike.
+            
+            # Human turn
+            if your_turn:
+                if self.take_turn(for_white) == -1:
+                    running = False
+
+            # Robot turn
+            else:
+                robot.take_turn()
+
+            for_white = not for_white
+            your_turn = not your_turn
+
+            # Check for loser
+            if self.is_game_over(for_white, verbose=False):
+                
+                running = False
+                self.print_board()
+                print(f"{self.name[not for_white]} has Won! The Game! Wow! Good job!")
 
     def play(self):
         '''
