@@ -1,4 +1,4 @@
-#from dame import Dame # helps vscode autofill stuff while coding
+import dame as dm # helps vscode autofill stuff while coding
 from random import choice
 from time import sleep
 
@@ -36,7 +36,19 @@ class Dame_AI:
             TODO: make choice good
         '''
 
-        return choice(self.list_valid_moves())
+        moves = self.list_valid_moves()
+        hmm = []
+
+        for fro, to in moves:
+
+            hypgame = dm.Dame(self.game.board.copy(),
+                              list(self.game.white_pieces), list(self.game.black_pieces))
+            hypgame.move(fro, to, self.is_white)
+            hmm.append(hypgame)
+            print(f"{self.game.col_to_char[fro[0]] + str(8-fro[1])} {self.game.col_to_char[to[0]] + str(8-to[1])} leads to score of {hypgame.eval_board(self.is_white)}")
+
+        return moves[max(range(len(hmm)), key= lambda idx: hmm[idx].eval_board(self.is_white))]
+
     
     def take_turn(self):
         '''
@@ -51,7 +63,8 @@ class Dame_AI:
 
             fro, to = self.choose_move()
 
-            print(f"{self.game.name[self.is_white]} moves from {fro} to {to}.")
+            print(f"{self.game.name[self.is_white]}, the robot moves from {self.game.col_to_char[fro[0]] + str(8-fro[1])} to {self.game.col_to_char[to[0]] + str(8-to[1])}.")
+
             turn_done = not self.game.move(fro, to, self.is_white) # Stays as True if you jump
 
             if not turn_done:

@@ -2,67 +2,82 @@ import numpy as np
 from itertools import product
 
 from mainmenu import MainMenu
-from dame_ai import Dame_AI
+import dame_ai as dai
 
 class Dame:
     '''
         The main managing class of the game dame (or checkers, by its actual boring name).
     '''
 
-    def __init__(self):
+    def __init__(self, board: np.array = None, white_pieces: list = None, black_pieces: list = None,
+                 interactive: bool = False):
         '''
-            Makes a board in a starting state.
+            Makes a board in a starting state, or in a given state if a state is given.
         '''
 
         # The Board
-        self.board = np.zeros([8,8], dtype=int)
-        self.white_pieces = []
-        self.black_pieces = []
+        if board is None: # Starting position
+            self.board = np.zeros([8,8], dtype=int)
 
-        # Place White pieces
-        offs = 1
-        for y in range(5,8):
-            offs = 1-offs
-            for i in range(4):
-                x = offs + 2*i
-                self.board[x,y] = 1
-                self.white_pieces.append((x,y))
+            # Place White pieces
+        
+            self.white_pieces = []
+            self.black_pieces = []
+            offs = 1
+            for y in range(5,8):
+                offs = 1-offs
+                for i in range(4):
+                    x = offs + 2*i
+                    self.board[x,y] = 1
+                    self.white_pieces.append((x,y))
 
-        # Place Black pieces
-        offs = 0
-        for y in range(3):
-            offs = 1-offs
-            for i in range(4):
-                x = offs + 2*i
-                self.board[x,y] = 2
-                self.black_pieces.append((x,y))
+            # Place Black pieces
+            offs = 0
+            for y in range(3):
+                offs = 1-offs
+                for i in range(4):
+                    x = offs + 2*i
+                    self.board[x,y] = 2
+                    self.black_pieces.append((x,y))
 
-        # Used when the drawing board
-        self.draw_as = {
-            0: '_', # Empty square
-            1: 'W', # White piece 
-            2: 'B', # Black piece
-            3: "Q", # White super piece (queen)
-            4: "D"  # Black super piece (dame)
-        }
+        else: # given start state
+            self.board = board
+            self.white_pieces = white_pieces
+            self.black_pieces = black_pieces
 
-        # Used when moving pieces
-        self.char_to_col = {
-            'a':0,
-            'b':1,
-            'c':2,
-            'd':3,
-            'e':4,
-            'f':5,
-            'g':6,
-            'h':7
-        }
+        if interactive: # We don't need these when making hypothetical games (for the robot)
 
-        # A convinience for printing
-        self.name = {
-            True: "White",
-            False: "Black"
-        }
+            # Used when the drawing the board
+            self.draw_as = {
+                0: '_', # Empty square
+                1: 'W', # White piece 
+                2: 'B', # Black piece
+                3: "Q", # White super piece (queen)
+                4: "D"  # Black super piece (dame)
+            }
+
+            # Used when moving pieces
+            self.char_to_col = {
+                'a':0,
+                'b':1,
+                'c':2,
+                'd':3,
+                'e':4,
+                'f':5,
+                'g':6,
+                'h':7
+            }
+
+            # Used when saying moves
+            self.col_to_char = {
+                col: char for char, col in self.char_to_col.items() # A fenti inverze
+            }
+
+            # A convinience for printing
+            self.name = {
+                True: "White",
+                False: "Black"
+            }
 
     def print_board(self):
         '''
@@ -228,7 +243,7 @@ class Dame:
             print("That move is against the law.")
         return False
     
-    def move(self, fro: tuple, to: tuple, for_white: bool):
+    def move(self, fro: tuple, to: tuple, for_white: bool, verbose: bool = False):
         """
         Moves the piece on 'fro' to 'to'.
         Assumes the input is all good in all the ways.
@@ -290,8 +305,8 @@ class Dame:
 
             if valid:
 
-                print(f"{self.name[for_white]} moves from {fro} to {to}.")
-                turn_done = not game.move(fro, to, for_white) # Stays as True if you jump
+                print(f"{self.name[for_white]} moves from {self.col_to_char[fro[0]] + str(8-fro[1])} to {self.col_to_char[to[0]] + str(8-to[1])}.")
+                turn_done = not game.move(fro, to, for_white, verbose=True) # Stays as True if you jump
 
                 if not turn_done:
 
@@ -335,12 +350,83 @@ class Dame:
                         
         return moves
 
+    def eval_board(self, for_white: bool):
+
+        '''
+            Gives an int score based on how good the position is for a player.
+            The better the position, the higher the score.
+
+            Things the score takes into account:
+
+                + Number of pieces
+                + Number of super pieces
+                + Can you jump over an enemy piece
+
+                - Similar things but for the enemy                       
+        '''
+
+        score = 0
+
+        your_pieces = self.white_pieces if for_white else self.black_pieces
+        enemy_pieces = self.black_pieces if for_white else self.white_pieces
+
+        for x,y in your_pieces:
+
+            # Head count
+
+            score += 2 # +2 points per piece alive
+            if self.board[x,y] > 2:
+                score += 2 # +2 points per super piece
+
+            score += len(self.list_valid_moves(for_white)) # +1 point for each potential legal move.
+
+            frwrd = [-1] if for_white else [1]
+            bckwrd = [1] if for_white else [-1]
+
+            # Examining Weakness
+
+            for dx,dy in product([-1,1],frwrd):
+                try:
+                    if (x+dx, y+dy) in enemy_pieces and self.board[x-dx,y-dy] == 0:
+                        score -= 30 # -20 points for each jump the opponent can make over you
+                except:
+                    pass  # Ha kinyúlnánk a táblából
+
+            for dx,dy in product([-1,1],bckwrd):
+                try:
+                    if (self.board[x+dx,y+dy] > 2 and 
+                        (x+dx, y+dy) in enemy_pieces and self.board[x-dx,y-dy] == 0):
+                        score -= 30 # -20 points for each super jump the opponent can make over you
+                except:
+                    pass # Ha kinyúlnánk a táblából
+
+            # Examining Power
+            
+            for dx,dy in product([-1,1],frwrd):
+                try:
+                    if (x+dx, y+dy) in enemy_pieces and self.board[x+2*dx,y+2*dy] == 0:
+                        score += 10 # +10 points for each jump you can make over your opponent.
+                except:
+                    pass # Ha kinyúlnánk a táblából
+
+            for dx,dy in product([-1,1],bckwrd):
+                try:
+                    if (self.board[x,y] > 2 and 
+                        (x+dx, y+dy) in enemy_pieces and self.board[x+2*dx,y+2*dy] == 0):
+                        score += 10 # +10 points for each super jump you can make over your opponent.
+                except:
+                    pass # Ha kinyúlnánk a táblából
+
+        return score
+
     def is_game_over(self, for_white: bool, verbose:bool = True):
         '''
             Checks if the game is over for a player.
             Returns True if the player has no possible moves
             Return False if the player has possible moves.
         '''
+
+        print(f"{self.name[for_white]}'s board score is {self.eval_board(for_white)}! Interesting!")
 
         moves = self.list_valid_moves(for_white)
 
@@ -384,7 +470,7 @@ class Dame:
             Play against a fully sentient, conscious artificial intelligence.
         '''
 
-        robot = Dame_AI(self, is_white = False) #TODO: choose player
+        robot = dai.Dame_AI(self, is_white = False) #TODO: choose player
 
         for_white = True
         your_turn = True
@@ -436,6 +522,6 @@ class Dame:
 
 if __name__ == "__main__":
 
-    game = Dame()
+    game = Dame(interactive=True)
     game.play()
         
