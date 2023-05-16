@@ -14,6 +14,28 @@ class MainMenu:
 		print("Anything else: List options and choose again")
 		print()
 
+	def setup_vs_ai(self):
+		'''
+			Choose Team to play as, and how smart the robot should be.
+		'''
+		team = input("Enter 0 to play as White, anything else for Black.\nTeam: ") == "0"
+		IQ = -1
+		print("How smart should the robot be on a semi-logarithmic scale of 0 to 10?")
+		while IQ not in range(11):
+			
+			try:
+				IQ = int(input("Smarts: "))
+			except:
+				print("No, you don't understand, please try again. Pick a whole number from 0 to 10. Please.")
+			else:
+				if IQ > 10:
+					print("Sorry, but technology just isn't there yet. Please pick a lower number.")
+
+				elif IQ < 0:
+					print("ha-ha. very funny. no.")
+
+		return team, IQ
+
 	def get_command(self):
 		
 		self.command = input("Enter command: ")

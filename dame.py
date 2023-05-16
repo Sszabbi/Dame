@@ -266,7 +266,8 @@ class Dame:
         # Check for promotion (other side + regular piece)
         if to[1] == 7 - int(for_white) * 7 and self.board[to] < 3:
             self.board[to] += 2
-            print(f"The {self.name[for_white]} piece reaches the enemy lines! Promoted!")
+            if verbose:
+                print(f"The {self.name[for_white]} piece reaches the enemy lines! Promoted!")
 
         # (For the needy functions)
         to = np.array(to)
@@ -426,8 +427,6 @@ class Dame:
             Return False if the player has possible moves.
         '''
 
-        print(f"{self.name[for_white]}'s board score is {self.eval_board(for_white)}! Interesting!")
-
         moves = self.list_valid_moves(for_white)
 
         if len(moves) == 0:
@@ -465,15 +464,16 @@ class Dame:
                 self.print_board()
                 print(f"{self.name[not for_white]} has Won! The Game! Wow! Good job!")
 
-    def play_vs_ai(self):
+    def play_vs_ai(self, team: bool, IQ:int):
         '''
             Play against a fully sentient, conscious artificial intelligence.
+            You are playing on the team team, agiant an AI with an IQ of IQ.
         '''
 
         robot = dai.Dame_AI(self, is_white = False) #TODO: choose player
 
-        for_white = True
-        your_turn = True
+        for_white = team
+        your_turn = team
         running = True
 
         while running:
@@ -489,7 +489,7 @@ class Dame:
 
             # Robot turn
             else:
-                robot.take_turn()
+                robot.take_turn(depth = IQ, verbose=True)
 
             for_white = not for_white
             your_turn = not your_turn
@@ -515,7 +515,8 @@ class Dame:
                 self.play_vs_man()
 
             case 1: # VS AI
-                self.play_vs_ai()
+                team, IQ = menu.setup_vs_ai()
+                self.play_vs_ai(team, IQ)
 
             case 2: # QUIT
                 print("Bye!")
