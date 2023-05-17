@@ -4,6 +4,235 @@ from itertools import product
 from mainmenu import MainMenu
 import dame_ai as dai
 
+
+# Non-Object-Functions to speed up robots, as fast robots are cool. 
+
+# A convinience for printing
+name = {
+    True: "White",
+    False: "Black"
+}
+
+def can_jump(for_white, board, white_pieces, black_pieces):
+
+    """
+        Returns True if the player can make a capture
+        (for those unaware, the rules say that you MUST make that jump then.)
+    """
+
+    moves = list_valid_moves(for_white, board, white_pieces, black_pieces)
+    for (xf,_), (xto,_) in moves:
+
+        if abs(xf-xto) == 2:
+            return True
+        
+    return False
+
+def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool,
+                    verbose: bool = True):
+    '''
+        Examines the validity of a player moving from "fro" to "to".
+
+        Player is white iff for_white is True
+        fro and to are tuples with the indices of the places in self.board
+
+        If you must jump, you must jump.
+
+        In verbose mode, shows a "helpful" message if your move cannot be moved
+    '''
+
+    xf, yf = fro
+    xto, yto = to
+
+    for coord in [xf,yf,xto,yto]:
+        if coord not in range(8):
+            return False
+        
+    # Check if you are jumping if you must.
+    if must_jump and abs(xf-xto) != 2:
+        print("You have to jump, you just have to.")
+        return False
+        
+    # Do you have a piece there?
+    your_pieces = [1, 3] if for_white else [2, 4]
+    enemy_pieces = [2, 4] if for_white else [1, 3]
+
+    if board[xf,yf] not in your_pieces:
+        if verbose:
+            print("You have no piece there, blindo.")
+        return False
+        
+    
+    # Is the destination empty?
+    if board[xto,yto] != 0:
+        if verbose:
+            print("There is something in the way.")
+        return False
+
+    poss_moves = [] # Your movement should be in here somehow
+
+    # Moving up
+    if for_white or (not for_white and board[xf,yf] == your_pieces[1]):
+        poss_moves.append(np.array([-1,-1]))
+        poss_moves.append(np.array([1,-1]))
+
+    # Moving down
+    if not for_white or (for_white and board[xf,yf] == your_pieces[1]):
+        poss_moves.append(np.array([-1,1]))
+        poss_moves.append(np.array([1,1]))
+    
+    move_vec = np.array([xto-xf, yto-yf])
+
+    # Check if you're trying to jump over someone
+    if abs(move_vec[0]) == 2 and abs(move_vec[1]) == 2:
+        move_vec //= 2
+        ovx, ovy = np.array(fro) + move_vec
+        if board[ovx, ovy] not in enemy_pieces:
+            if verbose:
+                print("You can only jump if an enemy is before you.")
+            return False
+        
+    # Check if move is legal
+    for pm in poss_moves:
+        if (pm == move_vec).all():
+            return True
+    
+    if verbose:
+        print("That move is against the law.")
+    return False
+        
+def list_valid_moves(for_white:bool, board:np.array, white_pieces:list, black_pieces:list):
+    '''
+        Makes a list of all possible moves that a player can make on a board.
+        The moves are in the from of tuples.
+    '''
+
+    moves = []
+    your_pieces = white_pieces if for_white else black_pieces
+
+    for x,y in your_pieces:
+
+        # This checks all 8 possible moves no matter what, which is honestly fine.
+        for dx,dy in list(product([-1,1],[-1,1])) + list(product([-2,2],[-2,2])):
+
+            if is_move_valid(board, (x,y), (x+dx, y+dy), for_white, must_jump = False,
+                                        verbose = False):
+                moves.append(( (x,y),(x+dx,y+dy) ))
+                    
+    return moves
+
+def eval_board(board, white_pieces, black_pieces, for_white: bool):
+
+    '''
+        Gives an int score based on how good the position is for a player.
+        The better the position, the higher the score.
+
+        Things the score takes into account:
+
+            + Number of pieces
+            + Number of super pieces
+            + Can you jump over an enemy piece
+
+            - Similar things but for the enemy                       
+    '''
+
+    score = 0
+
+    your_pieces = white_pieces if for_white else black_pieces
+    enemy_pieces = black_pieces if for_white else white_pieces
+
+    for x,y in your_pieces:
+
+        # Head count
+
+        score += 2 # +2 points per piece alive
+        if board[x,y] > 2:
+            score += 2 # +2 points per super piece
+
+        score += len(list_valid_moves(for_white, board, white_pieces, black_pieces)) # +1 point for each potential legal move.
+
+        frwrd = [-1] if for_white else [1]
+        bckwrd = [1] if for_white else [-1]
+
+        # Examining Weakness
+
+        for dx,dy in product([-1,1],frwrd):
+            try:
+                if (x+dx, y+dy) in enemy_pieces and board[x-dx,y-dy] == 0:
+                    score -= 30 # -20 points for each jump the opponent can make over you
+            except:
+                pass  # Ha kinyúlnánk a táblából (ez a komment valamiért magyarra sikerült, de nem javítom át.)
+
+        for dx,dy in product([-1,1],bckwrd):
+            try:
+                if (board[x+dx,y+dy] > 2 and 
+                    (x+dx, y+dy) in enemy_pieces and board[x-dx,y-dy] == 0):
+                    score -= 30 # -20 points for each super jump the opponent can make over you
+            except:
+                pass # Ha kinyúlnánk a táblából
+
+        # Examining Power
+        
+        for dx,dy in product([-1,1],frwrd):
+            try:
+                if (x+dx, y+dy) in enemy_pieces and board[x+2*dx,y+2*dy] == 0:
+                    score += 10 # +10 points for each jump you can make over your opponent.
+            except:
+                pass # Ha kinyúlnánk a táblából
+
+        for dx,dy in product([-1,1],bckwrd):
+            try:
+                if (board[x,y] > 2 and 
+                    (x+dx, y+dy) in enemy_pieces and board[x+2*dx,y+2*dy] == 0):
+                    score += 10 # +10 points for each super jump you can make over your opponent.
+            except:
+                pass # Ha kinyúlnánk a táblából
+
+    return score
+
+def move(board, white_pieces, black_pieces, fro: tuple, to: tuple, for_white: bool, verbose: bool = False):
+    """
+    Moves the piece on 'fro' to 'to'.
+    Assumes the input is all good in all the ways.
+
+    If it's a jump then obliterate anything inbetween and return True.
+    (Returns False if not a jump, then.)
+
+    If a regular piece reaches the opposite side, promote it to super piece.
+    """
+    your_pieces = white_pieces if for_white else black_pieces
+
+    # Moving the piece and leaving nothing behind
+
+    board[to] = board[fro]
+    board[fro] = 0
+
+    your_pieces.remove(fro)
+    your_pieces.append(to)
+
+    # Check for promotion (other side + regular piece)
+    if to[1] == 7 - int(for_white) * 7 and board[to] < 3:
+        board[to] += 2
+        if verbose:
+            print(f"The {name[for_white]} piece reaches the enemy lines! Promoted!")
+
+    # (For the needy functions)
+    to = np.array(to)
+    fro = np.array(fro)
+
+
+    # Remove over-jumped piece forever
+    if abs(to[0] - fro[0]) == 2 and abs(to[1] - fro[1]) == 2:
+
+        enemy_pieces = black_pieces if for_white else white_pieces
+
+        ovx, ovy = (fro+to)//2
+        board[ovx,ovy] = 0
+        enemy_pieces.remove((ovx,ovy))
+        return True
+    
+    return False
+
 class Dame:
     '''
         The main managing class of the game dame (or checkers, by its actual boring name).
@@ -73,12 +302,6 @@ class Dame:
                 col: char for char, col in self.char_to_col.items() # A fenti inverze
             }
 
-            # A convinience for printing
-            self.name = {
-                True: "White",
-                False: "Black"
-            }
-
     def print_board(self):
         '''
             Draws the board to the console
@@ -132,7 +355,7 @@ class Dame:
         while try_again: # Only escape loop if everything goes well
             try_again = False
 
-            curr = input(f"Move for {self.name[for_white]}: ")
+            curr = input(f"Move for {name[for_white]}: ")
 
             if curr == "-1": # To quit debug without ctrl+c
                 return -1
@@ -162,13 +385,7 @@ class Dame:
             (for those unaware, the rules say that you MUST make that jump then.)
         """
 
-        moves = self.list_valid_moves(for_white)
-        for (xf,_), (xto,_) in moves:
-
-            if abs(xf-xto) == 2:
-                return True
-            
-        return False
+        return can_jump(for_white, self.board, self.white_pieces, self.black_pieces)
     
     def is_move_valid(self, fro: tuple, to: tuple, for_white: bool, must_jump: bool,
                       verbose: bool = True):
@@ -183,65 +400,7 @@ class Dame:
             In verbose mode, shows a "helpful" message if your move cannot be moved
         '''
 
-        xf, yf = fro
-        xto, yto = to
-
-        for coord in [xf,yf,xto,yto]:
-            if coord not in range(8):
-                return False
-            
-        # Check if you are jumping if you must.
-        if must_jump and abs(xf-xto) != 2:
-            print("You have to jump, you just have to.")
-            return False
-            
-        # Do you have a piece there?
-        your_pieces = [1, 3] if for_white else [2, 4]
-        enemy_pieces = [2, 4] if for_white else [1, 3]
-
-        if self.board[xf,yf] not in your_pieces:
-            if verbose:
-                print("You have no piece there, blindo.")
-            return False
-        
-        
-        # Is the destination empty?
-        if self.board[xto,yto] != 0:
-            if verbose:
-                print("There is something in the way.")
-            return False
-
-        poss_moves = [] # Your movement should be in here somehow
-
-        # Moving up
-        if for_white or (not for_white and self.board[xf,yf] == your_pieces[1]):
-            poss_moves.append(np.array([-1,-1]))
-            poss_moves.append(np.array([1,-1]))
-
-        # Moving down
-        if not for_white or (for_white and self.board[xf,yf] == your_pieces[1]):
-            poss_moves.append(np.array([-1,1]))
-            poss_moves.append(np.array([1,1]))
-        
-        move_vec = np.array([xto-xf, yto-yf])
-
-        # Check if you're trying to jump over someone
-        if abs(move_vec[0]) == 2 and abs(move_vec[1]) == 2:
-            move_vec //= 2
-            ovx, ovy = np.array(fro) + move_vec
-            if self.board[ovx, ovy] not in enemy_pieces:
-                if verbose:
-                    print("You can only jump over an enemy beforeward of you.")
-                return False
-            
-        # Check if move is legal
-        for pm in poss_moves:
-            if (pm == move_vec).all():
-                return True
-        
-        if verbose:
-            print("That move is against the law.")
-        return False
+        return is_move_valid(self.board, fro, to, for_white, must_jump, verbose)
     
     def move(self, fro: tuple, to: tuple, for_white: bool, verbose: bool = False):
         """
@@ -253,38 +412,7 @@ class Dame:
 
         If a regular piece reaches the opposite side, promote it to super piece.
         """
-
-        # Moving the piece and leaving nothing behind
-        self.board[to] = self.board[fro]
-        self.board[fro] = 0
-
-        your_pieces = self.white_pieces if for_white else self.black_pieces
-        your_pieces.remove(fro)
-        your_pieces.append(to)
-
-
-        # Check for promotion (other side + regular piece)
-        if to[1] == 7 - int(for_white) * 7 and self.board[to] < 3:
-            self.board[to] += 2
-            if verbose:
-                print(f"The {self.name[for_white]} piece reaches the enemy lines! Promoted!")
-
-        # (For the needy functions)
-        to = np.array(to)
-        fro = np.array(fro)
-
-
-        # Remove over-jumped piece forever
-        if abs(to[0] - fro[0]) == 2 and abs(to[1] - fro[1]) == 2:
-
-            enemy_pieces = self.black_pieces if for_white else self.white_pieces
-
-            ovx, ovy = (fro+to)//2
-            self.board[ovx,ovy] = 0
-            enemy_pieces.remove((ovx,ovy))
-            return True
-        
-        return False
+        return move(self.board, self.white_pieces, self.black_pieces, fro, to, for_white, verbose)
 
     def take_turn(self, for_white: bool):
         '''
@@ -295,19 +423,19 @@ class Dame:
         turn_done = False
         while not turn_done:
 
-            move = game.get_input(for_white)
+            move = self.get_input(for_white)
             if move == -1:
                 return -1
             
             # Move examination
             fro,to = move
             must_jump = self.can_jump(for_white)
-            valid = game.is_move_valid(fro, to, for_white, must_jump)
+            valid = self.is_move_valid(fro, to, for_white, must_jump)
 
             if valid:
 
-                print(f"{self.name[for_white]} moves from {self.col_to_char[fro[0]] + str(8-fro[1])} to {self.col_to_char[to[0]] + str(8-to[1])}.")
-                turn_done = not game.move(fro, to, for_white, verbose=True) # Stays as True if you jump
+                print(f"{name[for_white]} moves from {self.col_to_char[fro[0]] + str(8-fro[1])} to {self.col_to_char[to[0]] + str(8-to[1])}.")
+                turn_done = not self.move(fro, to, for_white, verbose=True) # Stays as True if you jump
 
                 if not turn_done:
 
@@ -337,19 +465,7 @@ class Dame:
             Makes a list of all possible moves that a player can make.
             The moves are in the from of tuples.
         '''
-        moves = []
-        your_pieces = self.white_pieces if for_white else self.black_pieces
-
-        for x,y in your_pieces:
-
-            # This checks all 8 possible moves no matter what, which is honestly fine.
-            for dx,dy in list(product([-1,1],[-1,1])) + list(product([-2,2],[-2,2])):
-
-                if self.is_move_valid((x,y), (x+dx, y+dy), for_white, must_jump = False,
-                                          verbose = False):
-                    moves.append(( (x,y),(x+dx,y+dy) ))
-                        
-        return moves
+        return list_valid_moves(for_white, self.board, self.white_pieces, self.black_pieces)
 
     def eval_board(self, for_white: bool):
 
@@ -366,59 +482,7 @@ class Dame:
                 - Similar things but for the enemy                       
         '''
 
-        score = 0
-
-        your_pieces = self.white_pieces if for_white else self.black_pieces
-        enemy_pieces = self.black_pieces if for_white else self.white_pieces
-
-        for x,y in your_pieces:
-
-            # Head count
-
-            score += 2 # +2 points per piece alive
-            if self.board[x,y] > 2:
-                score += 2 # +2 points per super piece
-
-            score += len(self.list_valid_moves(for_white)) # +1 point for each potential legal move.
-
-            frwrd = [-1] if for_white else [1]
-            bckwrd = [1] if for_white else [-1]
-
-            # Examining Weakness
-
-            for dx,dy in product([-1,1],frwrd):
-                try:
-                    if (x+dx, y+dy) in enemy_pieces and self.board[x-dx,y-dy] == 0:
-                        score -= 30 # -20 points for each jump the opponent can make over you
-                except:
-                    pass  # Ha kinyúlnánk a táblából
-
-            for dx,dy in product([-1,1],bckwrd):
-                try:
-                    if (self.board[x+dx,y+dy] > 2 and 
-                        (x+dx, y+dy) in enemy_pieces and self.board[x-dx,y-dy] == 0):
-                        score -= 30 # -20 points for each super jump the opponent can make over you
-                except:
-                    pass # Ha kinyúlnánk a táblából
-
-            # Examining Power
-            
-            for dx,dy in product([-1,1],frwrd):
-                try:
-                    if (x+dx, y+dy) in enemy_pieces and self.board[x+2*dx,y+2*dy] == 0:
-                        score += 10 # +10 points for each jump you can make over your opponent.
-                except:
-                    pass # Ha kinyúlnánk a táblából
-
-            for dx,dy in product([-1,1],bckwrd):
-                try:
-                    if (self.board[x,y] > 2 and 
-                        (x+dx, y+dy) in enemy_pieces and self.board[x+2*dx,y+2*dy] == 0):
-                        score += 10 # +10 points for each super jump you can make over your opponent.
-                except:
-                    pass # Ha kinyúlnánk a táblából
-
-        return score
+        return eval_board(self.board, self.white_pieces, self.black_pieces, for_white)
 
     def is_game_over(self, for_white: bool, verbose:bool = True):
         '''
@@ -431,11 +495,11 @@ class Dame:
 
         if len(moves) == 0:
             if verbose:
-                print(f"Not a move to make for {self.name[for_white]}. Sad.")
+                print(f"Not a move to make for {name[for_white]}. Sad.")
             return True
 
         elif verbose:
-                print(f"{self.name[for_white]} has a move: {moves[0]}, so the game is still going.")
+                print(f"{name[for_white]} has a move: {moves[0]}, so the game is still going.")
         return False
 
     def play_vs_man(self):
@@ -462,7 +526,7 @@ class Dame:
                 
                 running = False
                 self.print_board()
-                print(f"{self.name[not for_white]} has Won! The Game! Wow! Good job!")
+                print(f"{name[not for_white]} has Won! The Game! Wow! Good job!")
 
     def play_vs_ai(self, team: bool, IQ:int):
         '''
@@ -499,7 +563,7 @@ class Dame:
                 
                 running = False
                 self.print_board()
-                print(f"{self.name[not for_white]} has Won! The Game! Wow! Good job!")
+                print(f"{name[not for_white]} has Won! The Game! Wow! Good job!")
 
     def play(self):
         '''
@@ -525,4 +589,3 @@ if __name__ == "__main__":
 
     game = Dame(interactive=True)
     game.play()
-        
