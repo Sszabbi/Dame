@@ -37,6 +37,8 @@ def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool
         fro and to are tuples with the indices of the places in self.board
 
         If you must jump, you must jump.
+        Warning! the "must jump" parameter is calculated by this function (hmm), and can only be used in the
+        "You have to jump" part at the start, not the later legality-checking part. Yeah, I know.  
 
         In verbose mode, shows a "helpful" message if your move cannot be moved
     '''
@@ -50,7 +52,8 @@ def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool
         
     # Check if you are jumping if you must.
     if must_jump and abs(xf-xto) != 2:
-        print("You have to jump, you just have to.")
+        if verbose:
+            print("You have to jump, you just have to.")
         return False
         
     # Do you have a piece there?
@@ -62,40 +65,34 @@ def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool
             print("You have no piece there, blindo.")
         return False
         
-    
     # Is the destination empty?
     if board[xto,yto] != 0:
         if verbose:
             print("There is something in the way.")
         return False
 
-    poss_moves = [] # Your movement should be in here somehow
+    # Is move legal?
+    main_dir = -1 if for_white else 1
+    if abs(xf-xto) != 2: # regular step
 
-    # Moving up
-    if for_white or (not for_white and board[xf,yf] == your_pieces[1]):
-        poss_moves.append(np.array([-1,-1]))
-        poss_moves.append(np.array([1,-1]))
-
-    # Moving down
-    if not for_white or (for_white and board[xf,yf] == your_pieces[1]):
-        poss_moves.append(np.array([-1,1]))
-        poss_moves.append(np.array([1,1]))
+        # You're either moving forward or are moving a super piece
+        legal = (abs(xto-xf) == 1 and abs(yto-yf)==1) and (yto-yf == main_dir or board[xf,yf] > 2)
+        if verbose and not legal:
+            print("That is an evil, illegal move.")
+        return legal
     
-    move_vec = np.array([xto-xf, yto-yf])
+    else: # jump
 
-    # Check if you're trying to jump over someone
-    if abs(move_vec[0]) == 2 and abs(move_vec[1]) == 2:
-        move_vec //= 2
-        ovx, ovy = np.array(fro) + move_vec
-        if board[ovx, ovy] not in enemy_pieces:
-            if verbose:
-                print("You can only jump if an enemy is before you.")
-            return False
-        
-    # Check if move is legal
-    for pm in poss_moves:
-        if (pm == move_vec).all():
-            return True
+        # Same as before, plus you are jumping over someone for real
+        legal = (abs(yto-yf)==2 and (yto-yf == 2*main_dir or board[xf,yf] > 2) and
+                 board[(xto+xf)//2, (yto+yf)//2] in enemy_pieces)
+        if verbose and not legal:
+            print("You can't jump over thin air. That's literally impossible.")
+        return legal
+    
+    print("Huh?") #something went terribly wrong
+    return None
+
     
     if verbose:
         print("That move is against the law.")
@@ -109,11 +106,25 @@ def list_valid_moves(for_white:bool, board:np.array, white_pieces:list, black_pi
 
     moves = []
     your_pieces = white_pieces if for_white else black_pieces
+    enemy_pieces = [2,4] if for_white else [1,3]
+    main_dir = -1 if for_white else 1
 
     for x,y in your_pieces:
 
-        # This checks all 8 possible moves no matter what, which is honestly fine.
-        for dx,dy in list(product([-1,1],[-1,1])) + list(product([-2,2],[-2,2])):
+        # Check the 2/4 possible ways a piece could go. This is rumored to be okay.
+        moves_to_check = list(product([-1,1],[main_dir]))
+        if board[x,y] > 2: #super piece
+            moves_to_check += list(product([-1,1],[-main_dir]))
+
+        for dx,dy in moves_to_check:
+
+            # If there's an enemy hre, check if you can jump over.
+            try:
+                if board[x+dx,y+dy] in enemy_pieces: #Just in case we reach out of the board
+                    dx*=2
+                    dy*=2
+            except:
+                pass
 
             if is_move_valid(board, (x,y), (x+dx, y+dy), for_white, must_jump = False,
                                         verbose = False):
@@ -145,11 +156,11 @@ def eval_board(board, white_pieces, black_pieces, for_white: bool):
 
         # Head count
 
-        score += 2 # +2 points per piece alive
+        score += 1 # +1 points per piece alive
         if board[x,y] > 2:
-            score += 2 # +2 points per super piece
+            score += 1 # +1 points per super piece
 
-        score += len(list_valid_moves(for_white, board, white_pieces, black_pieces)) # +1 point for each potential legal move.
+        #score += len(list_valid_moves(for_white, board, white_pieces, black_pieces)) # +1 point for each potential legal move.
 
         frwrd = [-1] if for_white else [1]
         bckwrd = [1] if for_white else [-1]
@@ -159,7 +170,7 @@ def eval_board(board, white_pieces, black_pieces, for_white: bool):
         for dx,dy in product([-1,1],frwrd):
             try:
                 if (x+dx, y+dy) in enemy_pieces and board[x-dx,y-dy] == 0:
-                    score -= 30 # -20 points for each jump the opponent can make over you
+                    score -= 3 # -3 points for each jump the opponent can make over you
             except:
                 pass  # Ha kinyúlnánk a táblából (ez a komment valamiért magyarra sikerült, de nem javítom át.)
 
@@ -167,7 +178,7 @@ def eval_board(board, white_pieces, black_pieces, for_white: bool):
             try:
                 if (board[x+dx,y+dy] > 2 and 
                     (x+dx, y+dy) in enemy_pieces and board[x-dx,y-dy] == 0):
-                    score -= 30 # -20 points for each super jump the opponent can make over you
+                    score -= 3 # -3 points for each super jump the opponent can make over you
             except:
                 pass # Ha kinyúlnánk a táblából
 
@@ -176,7 +187,7 @@ def eval_board(board, white_pieces, black_pieces, for_white: bool):
         for dx,dy in product([-1,1],frwrd):
             try:
                 if (x+dx, y+dy) in enemy_pieces and board[x+2*dx,y+2*dy] == 0:
-                    score += 10 # +10 points for each jump you can make over your opponent.
+                    score += 2 # +2 points for each jump you can make over your opponent.
             except:
                 pass # Ha kinyúlnánk a táblából
 
@@ -184,7 +195,7 @@ def eval_board(board, white_pieces, black_pieces, for_white: bool):
             try:
                 if (board[x,y] > 2 and 
                     (x+dx, y+dy) in enemy_pieces and board[x+2*dx,y+2*dy] == 0):
-                    score += 10 # +10 points for each super jump you can make over your opponent.
+                    score += 10 # +2 points for each super jump you can make over your opponent.
             except:
                 pass # Ha kinyúlnánk a táblából
 
