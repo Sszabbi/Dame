@@ -20,15 +20,16 @@ class MainMenu:
 		'''
 		team = input("Enter 0 to play as White, anything else for Black.\nTeam: ") == "0"
 		IQ = -1
-		print("How smart should the robot be on a semi-logarithmic scale of 0 to 10?")
-		while IQ not in range(11):
+		MaxIQ = 3
+		print(f"How smart should the robot be on a semi-logarithmic scale of 0 to {MaxIQ}?")
+		while IQ not in range(MaxIQ+1):
 			
 			try:
 				IQ = int(input("Smarts: "))
 			except:
-				print("No, you don't understand, please try again. Pick a whole number from 0 to 10. Please.")
+				print(f"No, you don't understand, please try again. Pick a whole number from 0 to {MaxIQ}. Please.")
 			else:
-				if IQ > 10:
+				if IQ > MaxIQ:
 					print("Sorry, but technology just isn't there yet. Please pick a lower number.")
 
 				elif IQ < 0:

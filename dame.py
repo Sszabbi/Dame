@@ -159,9 +159,9 @@ def eval_board(board, white_pieces, black_pieces, for_white: bool):
 
         # Head count
 
-        score += 1 # +1 points per piece alive
+        score += 2 # +1 points per piece alive
         if board[x,y] > 2:
-            score += 1 # +1 points per super piece
+            score += 2 # +1 points per super piece
 
         #score += len(list_valid_moves(for_white, board, white_pieces, black_pieces)) # +1 point for each potential legal move.
 
@@ -393,7 +393,6 @@ class Dame:
 
         return (xf,yf), (xto,yto)
         
-    
     def is_move_valid(self, fro: tuple, to: tuple, for_white: bool,
                       verbose: bool = True):
         '''

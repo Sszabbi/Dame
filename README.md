@@ -36,6 +36,12 @@ The rules of the game are as follows:
 
 When starting the game, the player must choose one of the listed options to get started.
 
+When chooseing to play against an AI, you must choose which color to play as, and how smart the robot should be.
+
+Note: The robot's current version is not entirely optimized, so it gets kind of slow at high difficulty (high meaning 3+), so intelligence is limited to 3 in the version.
+
+While playing, a palyer may input '-1' at any time to quit the game.
+
 ## VS player
  
 The players must input their moves one after another. The program always shows who's turn it currently is.

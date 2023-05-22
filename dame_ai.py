@@ -26,7 +26,7 @@ class Dame_AI:
         if board is None:
             board = self.game.board
             white_pieces = self.game.white_pieces
-            black_pieces = self.game.white_pieces
+            black_pieces = self.game.black_pieces
 
         for_white = self.is_white if for_me else not self.is_white
 
@@ -34,9 +34,7 @@ class Dame_AI:
 
         # Keep only jumps if needed
         if dm.can_jump(board, white_pieces, black_pieces, for_white):
-            #print("Snip snip")
             moves = [move for move in moves if abs(move[0][0] - move[1][0]) == 2]
-            #print(f"{len(moves)=} moves left")
 
         return moves
     
@@ -57,6 +55,8 @@ class Dame_AI:
             black_pieces = self.game.black_pieces
 
         moves = self.list_valid_moves(True, board, white_pieces, black_pieces)
+        if len(moves) == 0: # The robot is losing here. sad.
+            return None, -np.inf
         hygames = []
         
         for fro, to in moves:
@@ -97,7 +97,8 @@ class Dame_AI:
                 for player_game in player_games:
 
                     # You get a bit dumber for the sake of finite runtime
-                    _, best_score = self.choose_move(depth-1, player_game[0], player_game[1], player_game[2])
+                    _, best_score = self.choose_move(depth-1, player_game[0], 
+                                                        player_game[1], player_game[2])
                     you_scores.append(best_score)
 
                 # The enemy will pick a move that makes you end up with the least possible score in the end
