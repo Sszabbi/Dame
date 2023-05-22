@@ -13,32 +13,40 @@ name = {
     False: "Black"
 }
 
-def can_jump(for_white, board, white_pieces, black_pieces):
+def can_jump(board:np.array, white_pieces:list, black_pieces:list, for_white:bool):
+    '''
+        Check if a player can make some sort of a jump on a board.
+    '''
+    your_pieces = white_pieces if for_white else black_pieces
+    enemy_pieces = [2,4] if for_white else [1,3]
+    main_dir = -1 if for_white else 1
 
-    """
-        Returns True if the player can make a capture
-        (for those unaware, the rules say that you MUST make that jump then.)
-    """
+    for x,y in your_pieces:
 
-    moves = list_valid_moves(for_white, board, white_pieces, black_pieces)
-    for (xf,_), (xto,_) in moves:
+        # listing every way a jump could be made
+        dir_to_check = list(product([1,-1],[main_dir]))
+        if board[x,y]>2:
+            dir_to_check += list(product([1,-1],[-main_dir]))
 
-        if abs(xf-xto) == 2:
-            return True
-        
+        for dx,dy in dir_to_check:
+            if 0 <= x+2*dx < 8 and 0 <= y+2*dy < 8:
+                if board[x+dx,y+dy] in enemy_pieces and board[x+2*dx,y+2*dy] == 0:
+                    # print(f"{(x,y)} can jump over {(x+dx,y+dy)}")
+                    # valid jump found
+                    return True
+    
+    # nobody can make a single jump on the whole board.
     return False
 
-def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool,
-                    verbose: bool = True):
+
+def is_move_valid(board, white_pieces, black_pieces, fro: tuple, to: tuple, for_white: bool, verbose: bool = True):
     '''
         Examines the validity of a player moving from "fro" to "to".
 
         Player is white iff for_white is True
         fro and to are tuples with the indices of the places in self.board
 
-        If you must jump, you must jump.
-        Warning! the "must jump" parameter is calculated by this function (hmm), and can only be used in the
-        "You have to jump" part at the start, not the later legality-checking part. Yeah, I know.  
+        If you must jump, you must jump. 
 
         In verbose mode, shows a "helpful" message if your move cannot be moved
     '''
@@ -47,14 +55,8 @@ def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool
     xto, yto = to
 
     for coord in [xf,yf,xto,yto]:
-        if coord not in range(8):
+        if not (0 <= coord < 8):
             return False
-        
-    # Check if you are jumping if you must.
-    if must_jump and abs(xf-xto) != 2:
-        if verbose:
-            print("You have to jump, you just have to.")
-        return False
         
     # Do you have a piece there?
     your_pieces = [1, 3] if for_white else [2, 4]
@@ -72,6 +74,13 @@ def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool
         return False
 
     # Is move legal?
+
+    # check if a jump is available
+    if can_jump(board, white_pieces, black_pieces, for_white) and abs(xto-xf) != 2:
+        if verbose:
+            print("You have to jump! It's the only way!")
+        return False
+
     main_dir = -1 if for_white else 1
     if abs(xf-xto) != 2: # regular step
 
@@ -92,11 +101,6 @@ def is_move_valid(board, fro: tuple, to: tuple, for_white: bool, must_jump: bool
     
     print("Huh?") #something went terribly wrong
     return None
-
-    
-    if verbose:
-        print("That move is against the law.")
-    return False
         
 def list_valid_moves(for_white:bool, board:np.array, white_pieces:list, black_pieces:list):
     '''
@@ -126,8 +130,7 @@ def list_valid_moves(for_white:bool, board:np.array, white_pieces:list, black_pi
             except:
                 pass
 
-            if is_move_valid(board, (x,y), (x+dx, y+dy), for_white, must_jump = False,
-                                        verbose = False):
+            if is_move_valid(board, white_pieces, black_pieces, (x,y), (x+dx, y+dy), for_white, verbose = False):
                 moves.append(( (x,y),(x+dx,y+dy) ))
                     
     return moves
@@ -384,21 +387,14 @@ class Dame:
             
             # Bad input check
             for idx in [xf, yf, xto, yto]:
-                if idx not in range(8):
+                if not (0 <= idx < 8):
                     print("That makes no sense.")
                     try_again = True
 
         return (xf,yf), (xto,yto)
         
-    def can_jump(self, for_white: bool):
-        """
-            Returns True if the player can make a capture
-            (for those unaware, the rules say that you MUST make that jump then.)
-        """
-
-        return can_jump(for_white, self.board, self.white_pieces, self.black_pieces)
     
-    def is_move_valid(self, fro: tuple, to: tuple, for_white: bool, must_jump: bool,
+    def is_move_valid(self, fro: tuple, to: tuple, for_white: bool,
                       verbose: bool = True):
         '''
             Examines the validity of a player moving from "fro" to "to".
@@ -411,7 +407,7 @@ class Dame:
             In verbose mode, shows a "helpful" message if your move cannot be moved
         '''
 
-        return is_move_valid(self.board, fro, to, for_white, must_jump, verbose)
+        return is_move_valid(self.board, self.white_pieces, self.black_pieces, fro, to, for_white, verbose)
     
     def move(self, fro: tuple, to: tuple, for_white: bool, verbose: bool = False):
         """
@@ -440,8 +436,7 @@ class Dame:
             
             # Move examination
             fro,to = move
-            must_jump = self.can_jump(for_white)
-            valid = self.is_move_valid(fro, to, for_white, must_jump)
+            valid = self.is_move_valid(fro, to, for_white)
 
             if valid:
 
@@ -455,7 +450,7 @@ class Dame:
 
                     for (xf,yf), (xto,_) in self.list_valid_moves(for_white):
 
-                        # We found the jumper, can he jump?
+                        # We found the jumper, can he jump again?
                         if (xf,yf) == to and abs(xf-xto) == 2:
                             turn_done = False
                             break

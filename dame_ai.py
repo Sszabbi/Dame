@@ -33,8 +33,10 @@ class Dame_AI:
         moves = dm.list_valid_moves(for_white, board, white_pieces, black_pieces)
 
         # Keep only jumps if needed
-        if dm.can_jump(for_white, board, white_pieces, black_pieces):
+        if dm.can_jump(board, white_pieces, black_pieces, for_white):
+            #print("Snip snip")
             moves = [move for move in moves if abs(move[0][0] - move[1][0]) == 2]
+            #print(f"{len(moves)=} moves left")
 
         return moves
     
@@ -131,7 +133,7 @@ class Dame_AI:
 
                 for (xf,yf), (xto,_) in self.list_valid_moves():
 
-                    # We found the jumper, can he jump?
+                    # We found the jumper, can he jump again?
                     if (xf,yf) == to and abs(xf-xto) == 2:
                         turn_done = False
                         
